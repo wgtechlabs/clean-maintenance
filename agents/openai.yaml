@@ -1,0 +1,3 @@
+interface:
+  display_name: "Clean Maintenance"
+  short_description: "Fix dependency vulnerability alerts with Clean Flow PRs"
