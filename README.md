@@ -66,7 +66,7 @@ Contributions are welcome. Create a short-lived branch from `dev`, use the [Clea
 
 ## 📄 License
 
-No license has been specified for this repository.
+This project is licensed under the [MIT License](LICENSE).
 
 ## 👥 Authors & Contributors
 
