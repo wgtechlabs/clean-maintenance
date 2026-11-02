@@ -4,12 +4,16 @@
 from __future__ import annotations
 
 import datetime as dt
+import json
 import os
 import re
 import subprocess
 import sys
 import tempfile
 from dataclasses import dataclass
+from urllib.error import HTTPError, URLError
+from urllib.parse import quote
+from urllib.request import Request, urlopen
 
 
 INITIAL_VERSION = "0.1.0"
@@ -173,13 +177,100 @@ def replace_unreleased(content: str, replacement: list[str]) -> str:
 
 
 def latest_version_tag() -> tuple[str, tuple[int, int, int]] | None:
-    run("git", "fetch", "--tags", "--force", "origin")
     tags: list[tuple[str, tuple[int, int, int]]] = []
     for tag in run("git", "tag", "--list", "v*", capture=True).splitlines():
         match = VERSION_TAG.fullmatch(tag)
         if match:
             tags.append((tag, tuple(int(part) for part in match.groups())))
     return max(tags, key=lambda item: item[1]) if tags else None
+
+
+def github_release_for_tag(tag: str) -> dict[str, object] | None:
+    repository = os.environ.get("GITHUB_REPOSITORY", "")
+    token = os.environ.get("GH_TOKEN") or os.environ.get("GITHUB_TOKEN")
+    if not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", repository):
+        raise RuntimeError("GITHUB_REPOSITORY is missing or invalid")
+    if not token:
+        raise RuntimeError("GH_TOKEN is required to check GitHub Releases")
+
+    url = (
+        f"https://api.github.com/repos/{repository}/releases/tags/"
+        f"{quote(tag, safe='')}"
+    )
+    request = Request(
+        url,
+        headers={
+            "Accept": "application/vnd.github+json",
+            "Authorization": f"Bearer {token}",
+            "X-GitHub-Api-Version": "2022-11-28",
+        },
+    )
+    try:
+        with urlopen(request, timeout=30) as response:
+            release = json.loads(response.read().decode("utf-8"))
+    except HTTPError as error:
+        if error.code == 404:
+            return None
+        raise RuntimeError(
+            f"GitHub returned HTTP {error.code} while checking release {tag}"
+        ) from error
+    except URLError as error:
+        raise RuntimeError(f"Could not check GitHub Release {tag}") from error
+
+    if release.get("tag_name") != tag:
+        raise RuntimeError(f"GitHub returned an unexpected release for {tag}")
+    return release
+
+
+def release_notes_from_changelog(tag: str) -> str:
+    version = tag.removeprefix(VERSION_PREFIX)
+    with open(CHANGELOG_PATH, encoding="utf-8") as changelog:
+        content = changelog.read()
+
+    heading = re.compile(
+        rf"^## \[{re.escape(version)}\](?: - .*)?$",
+        re.MULTILINE,
+    )
+    match = heading.search(content)
+    if not match:
+        raise RuntimeError(f"CHANGELOG.md has no release entry for {tag}")
+
+    end = re.search(r"^## \[", content[match.end():], re.MULTILINE)
+    entry_end = match.end() + end.start() if end else len(content)
+    return content[match.start():entry_end].strip()
+
+
+def update_major_tag(tag: str) -> None:
+    version = tag.removeprefix(VERSION_PREFIX)
+    major_tag = f"{VERSION_PREFIX}{version.split('.')[0]}"
+    run(
+        "git",
+        "tag",
+        "--force",
+        "--annotate",
+        "--message",
+        f"🚀 release: {major_tag}",
+        major_tag,
+        tag,
+    )
+    run("git", "push", "--force", "origin", f"refs/tags/{major_tag}")
+
+
+def recover_missing_release(
+    latest: tuple[str, tuple[int, int, int]] | None,
+) -> None:
+    if latest is None:
+        return
+
+    tag, _ = latest
+    if github_release_for_tag(tag) is not None:
+        return
+
+    notes = release_notes_from_changelog(tag)
+    if MAJOR_TAGS_ENABLED:
+        update_major_tag(tag)
+    publish_release(tag, notes)
+    print(f"Recovered missing GitHub release {tag}.")
 
 
 def next_version(
@@ -276,7 +367,11 @@ def main() -> None:
         raise RuntimeError("The release workflow must run on main")
 
     run("git", "fetch", "--tags", "--force", "origin")
+    run("git", "fetch", "origin", "main")
+    run("git", "checkout", "--detach", "FETCH_HEAD")
+
     latest = latest_version_tag()
+    recover_missing_release(latest)
     previous_tag, previous = latest if latest else (None, None)
     commits = commits_since(previous_tag)
 
@@ -304,18 +399,7 @@ def main() -> None:
     run("git", "push", "origin", f"refs/tags/{tag}")
 
     if MAJOR_TAGS_ENABLED:
-        major_tag = f"{VERSION_PREFIX}{version.split('.')[0]}"
-        run(
-            "git",
-            "tag",
-            "--force",
-            "--annotate",
-            "--message",
-            f"🚀 release: {major_tag}",
-            major_tag,
-            tag,
-        )
-        run("git", "push", "--force", "origin", f"refs/tags/{major_tag}")
+        update_major_tag(tag)
 
     publish_release(tag, notes)
     print(f"Created GitHub release {tag}.")
