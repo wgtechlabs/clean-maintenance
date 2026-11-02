@@ -1,0 +1,37 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Create GitHub release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout full history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Create release and update changelog
+        uses: wgtechlabs/release-build-flow-action@6df9cb42c24c296d902150d051a0b6be4422cccc # v1.8.0
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          main-branch: main
+          version-prefix: v
+          initial-version: "0.1.0"
+          changelog-path: ./CHANGELOG.md
+          commit-convention: clean-commit
+          changelog-enabled: true
+          commit-changelog: true
+          create-release: true
+          sync-version-files: false

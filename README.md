@@ -50,11 +50,15 @@ Use the skill to review alert details, identify the dependency path, and prepare
 
 ## 🛠️ Development
 
-This is a documentation-only repository. There are no build or test scripts. Before submitting a README or skill change, review factual claims and links, confirm the skill name and UI metadata agree, and run:
+The skill is documentation-only; there are no build or test scripts. Before submitting a README or skill change, review factual claims and links, confirm the skill name and UI metadata agree, and run:
 
 ```sh
 git diff --check
 ```
+
+### Automated releases
+
+Pushes to `main` run [Release Build Flow Action](https://github.com/wgtechlabs/release-build-flow-action). It creates SemVer tags and GitHub Releases and maintains `CHANGELOG.md` from Clean Commit history. The workflow uses `0.1.0` as the initial version when no release tag exists and does not synchronize package version files.
 
 ## 🤝 Contributing
 
