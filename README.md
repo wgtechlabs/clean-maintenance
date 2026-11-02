@@ -56,9 +56,9 @@ The skill is documentation-only; there are no build or test scripts. Before subm
 git diff --check
 ```
 
-### Automated releases
+### Releases
 
-Pushes to `main` run [Release Build Flow Action](https://github.com/wgtechlabs/release-build-flow-action). It creates SemVer tags and GitHub Releases and maintains `CHANGELOG.md` from Clean Commit history. The workflow uses `0.1.0` as the initial version when no release tag exists and does not synchronize package version files.
+Run the `Release` workflow manually from the `main` branch. Enter a SemVer version without the `v` prefix, such as `0.1.0`, and optionally mark it as a prerelease. The workflow checks the version and existing tag, then uses GitHub CLI to create the `v<version>` tag on `main` and publish a GitHub Release with automatically generated notes.
 
 ## 🤝 Contributing
 

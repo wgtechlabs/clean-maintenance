@@ -1,37 +1,62 @@
 name: Release
 
 on:
-  push:
-    branches:
-      - main
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Release version without the v prefix (for example, 0.1.0)
+        required: true
+        type: string
+      prerelease:
+        description: Mark this release as a prerelease
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: write
 
 concurrency:
-  group: release-${{ github.ref }}
+  group: release-${{ inputs.version }}
   cancel-in-progress: false
 
 jobs:
   release:
-    name: Create GitHub release
+    if: github.ref == 'refs/heads/main'
+    name: Publish release
     runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_REPO: ${{ github.repository }}
+      RELEASE_VERSION: ${{ inputs.version }}
+      IS_PRERELEASE: ${{ inputs.prerelease }}
     steps:
-      - name: Checkout full history
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
+      - name: Validate release version and tag
+        id: validate
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ ! "${RELEASE_VERSION}" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?(\+[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$ ]]; then
+            echo "::error::Version must follow SemVer, for example 0.1.0 or 0.2.0-beta.1."
+            exit 1
+          fi
 
-      - name: Create release and update changelog
-        uses: wgtechlabs/release-build-flow-action@6df9cb42c24c296d902150d051a0b6be4422cccc # v1.8.0
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          main-branch: main
-          version-prefix: v
-          initial-version: "0.1.0"
-          changelog-path: ./CHANGELOG.md
-          commit-convention: clean-commit
-          changelog-enabled: true
-          commit-changelog: true
-          create-release: true
-          sync-version-files: false
+          tag="v${RELEASE_VERSION}"
+          if gh api "repos/${GH_REPO}/git/ref/tags/${tag}" >/dev/null 2>&1; then
+            echo "::error::Tag ${tag} already exists."
+            exit 1
+          fi
+
+          echo "tag=${tag}" >> "${GITHUB_OUTPUT}"
+
+      - name: Create GitHub release
+        shell: bash
+        env:
+          TAG: ${{ steps.validate.outputs.tag }}
+        run: |
+          set -euo pipefail
+          args=(release create "${TAG}" --target main --title "${TAG}" --generate-notes)
+          if [[ "${IS_PRERELEASE}" == "true" ]]; then
+            args+=(--prerelease)
+          fi
+          gh "${args[@]}"
