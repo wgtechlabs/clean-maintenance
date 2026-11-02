@@ -58,8 +58,7 @@ git diff --check
 
 ### Releases
 
-Run the `Release` workflow manually from the `main` branch. Enter a SemVer version without the `v` prefix, such as `0.1.0`, and optionally mark it as a prerelease. The workflow checks the version and existing tag, then uses GitHub CLI to create the `v<version>` tag on `main` and publish a GitHub Release with automatically generated notes.
-
+Every push to `main` runs the native release workflow. It reads Clean Commit messages to choose a SemVer bump, starting at `0.1.0`, updates `CHANGELOG.md`, creates a `vX.Y.Z` tag and GitHub Release, and updates the corresponding floating major tag. Maintenance commits without a version bump are recorded under `[Unreleased]`. The workflow uses GitHub Actions, a local Python script, and GitHub CLI; it does not depend on Release Build Flow Action.
 ## 🤝 Contributing
 
 Contributions are welcome. Create a short-lived branch from `dev`, use the [Clean Commit](https://github.com/wgtechlabs/clean-commit) format, and open pull requests targeting `dev`.
