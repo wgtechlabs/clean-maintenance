@@ -50,11 +50,15 @@ Use the skill to review alert details, identify the dependency path, and prepare
 
 ## 🛠️ Development
 
-This is a documentation-only repository. There are no build or test scripts. Before submitting a README or skill change, review factual claims and links, confirm the skill name and UI metadata agree, and run:
+The skill is documentation-only; there are no build or test scripts. Before submitting a README or skill change, review factual claims and links, confirm the skill name and UI metadata agree, and run:
 
 ```sh
 git diff --check
 ```
+
+### Releases
+
+Every push to `main` runs the native release workflow. It reads Clean Commit messages to choose a SemVer bump, starting at `0.1.0`, updates `CHANGELOG.md`, creates a `vX.Y.Z` tag and GitHub Release, and updates the corresponding floating major tag. Maintenance commits without a version bump are recorded under `[Unreleased]`. The workflow uses GitHub Actions, a local Python script, and GitHub CLI; it does not depend on Release Build Flow Action.
 
 ## 🤝 Contributing
 
